@@ -1,11 +1,19 @@
 use std::collections::HashMap;
+use std::fmt::Display;
 
 pub trait JsonWriter {
-    fn indent(&mut self);
-    fn de_indent(&mut self);
-    fn advance(&mut self);
-    fn write_one_space(&mut self);
-    fn write_new_line(&mut self);
+    fn indent(&mut self) -> &mut Self;
+    fn deindent(&mut self) -> &mut Self;
+    fn advance(&mut self) -> &mut Self;
+    fn write_one_space(&mut self) -> &mut Self;
+    fn write_new_line(&mut self) -> &mut Self;
+    fn json_start(&mut self) -> &mut Self;
+    fn json_end(&mut self) -> &mut Self;
+    fn json_objectstart(&mut self, value: &str) -> &mut Self;
+    fn json_arraystart(&mut self, value: &str) -> &mut Self;
+    fn json_objectend(&mut self) -> &mut Self;
+    fn json_arrayend(&mut self) -> &mut Self;
+    fn json_keyvalue(&mut self, key: &str, value: &str) -> &mut Self;
 }
 
 enum JSONState {
@@ -13,38 +21,126 @@ enum JSONState {
     AfterValue,
 }
 
-pub struct Context<'a> {
+pub struct Context {
     indent: usize,
     compact: bool,
     state: JSONState,
-    pub output: &'a String,
+    pub output: String,
 }
 
 impl JsonWriter for Context {
-    fn indent(&mut self) {
-        self.indent += 2
+    fn indent(&mut self) -> &mut Self {
+        self.indent += 2;
+        self
     }
 
-    fn de_indent(&mut self) {
-        self.indent -= 2
+    fn deindent(&mut self) -> &mut Self {
+        self.indent -= 2;
+        self
     }
 
-    fn advance(&mut self) {
+    fn advance(&mut self) -> &mut Self {
         if self.compact == false {
-            self.output.push_str(" ".repeat(self.indent).as_str())
+            self.write(" ".repeat(self.indent).as_str());
         }
+        self
     }
 
-    fn write_one_space(&mut self) {
+    fn write_one_space(&mut self) -> &mut Self {
         if self.compact == false {
-            self.output.push(' ')
+            self.write(" ");
         }
+        self
     }
 
-    fn write_new_line(&mut self) {
+    fn write_new_line(&mut self) -> &mut Self {
         if self.compact == false {
-            self.output.push('\n')
+            self.write("\n");
         }
+        self
+    }
+
+    fn json_start(&mut self) -> &mut Self {
+        match self.state {
+            JSONState::AfterValue => {
+                self.write(",");
+            }
+            JSONState::ObjectStart => {}
+        };
+        self.write_new_line().advance().write("{").indent();
+        self.state = JSONState::ObjectStart;
+        self
+    }
+
+    fn json_end(&mut self) -> &mut Self {
+        self.write_new_line().deindent().advance();
+        self.write("}");
+        self
+    }
+
+    fn json_objectstart(&mut self, value: &str) -> &mut Self {
+        match self.state {
+            JSONState::AfterValue => {
+                self.write(",");
+            }
+            JSONState::ObjectStart => {}
+        };
+        self.write_new_line()
+            .advance()
+            .write(value)
+            .write(":")
+            .write_one_space()
+            .write("{")
+            .indent();
+        self.state = JSONState::ObjectStart;
+        self
+    }
+
+    fn json_arraystart(&mut self, value: &str) -> &mut Self {
+        match self.state {
+            JSONState::AfterValue => {
+                self.write(",");
+            }
+            JSONState::ObjectStart => {}
+        };
+        self.write_new_line()
+            .advance()
+            .write(value)
+            .write(":")
+            .write_one_space()
+            .write("[")
+            .indent();
+        self
+    }
+
+    fn json_objectend(&mut self) -> &mut Self {
+        self.write_new_line().deindent().advance().write("}");
+        if self.indent == 0 {
+            self.write("\n");
+        }
+        self.state = JSONState::AfterValue;
+        self
+    }
+
+    fn json_arrayend(&mut self) -> &mut Self {
+        self.write_new_line().deindent().indent().write("]");
+        self.state = JSONState::AfterValue;
+        self
+    }
+
+    fn json_keyvalue(&mut self, key: &str, value: &str) -> &mut Self {
+        match self.state {
+            JSONState::AfterValue => { self.write(","); },
+            JSONState::ObjectStart => {}
+        };
+        self.write_new_line()
+            .advance()
+            .write(key)
+            .write(":")
+            .write_new_line()
+            .write(value);
+        self.state = JSONState::AfterValue;
+        self
     }
 }
 
@@ -54,11 +150,12 @@ impl Context {
             indent: 0,
             compact: false,
             state: JSONState::ObjectStart,
-            output: &"".to_string(),
+            output: String::from(""),
         }
     }
-    fn write(mut self, string: &str) {
-        self.output.push_str(string)
+    fn write(&mut self, string: &str) -> &mut Self {
+        self.output.push_str(string);
+        self
     }
 }
 
@@ -93,7 +190,7 @@ impl Object {
             }
         }
 
-        outout.into()
+        outout
     }
 }
 
