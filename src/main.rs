@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 
 pub trait JsonWriter {
     fn indent(&mut self) -> &mut Self;
@@ -67,7 +66,7 @@ impl JsonWriter for Context {
             }
             JSONState::ObjectStart => {}
         };
-        self.write_new_line().advance().write("{").indent();
+        self.advance().write("{").indent();
         self.state = JSONState::ObjectStart;
         self
     }
@@ -130,14 +129,14 @@ impl JsonWriter for Context {
 
     fn json_keyvalue(&mut self, key: &str, value: &str) -> &mut Self {
         match self.state {
-            JSONState::AfterValue => { self.write(","); },
+            JSONState::AfterValue => { self.write(","); }
             JSONState::ObjectStart => {}
         };
         self.write_new_line()
             .advance()
             .write(key)
             .write(":")
-            .write_new_line()
+            .write_one_space()
             .write(value);
         self.state = JSONState::AfterValue;
         self
@@ -212,7 +211,7 @@ enum ValueType {
 }
 
 fn main() {
-    let mut json = Object::new("global");
+    let json = Object::new("global");
     json.add("1", ValueType::String(String::from("123")));
 }
 
@@ -222,6 +221,17 @@ mod tests {
 
     #[test]
     fn test_for_writer() {
-        let writer = Context::new();
+        let mut writer = Context::new();
+        writer
+            .json_start()
+            .json_objectstart("foo")
+            .json_keyvalue("goo", "\"hoo\"")
+            .json_objectend()
+            .json_end();
+        assert_eq!(writer.output, "{
+  foo: {
+    goo: \"hoo\"
+  }
+}")
     }
 }
