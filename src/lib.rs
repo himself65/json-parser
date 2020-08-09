@@ -13,6 +13,7 @@ pub trait JsonWriter {
     fn json_objectend(&mut self) -> &mut Self;
     fn json_arrayend(&mut self) -> &mut Self;
     fn json_keyvalue(&mut self, key: &str, value: &str) -> &mut Self;
+    fn json_element(&mut self, value: &str) -> &mut Self;
 }
 
 enum JSONState {
@@ -122,7 +123,7 @@ impl JsonWriter for Context {
     }
 
     fn json_arrayend(&mut self) -> &mut Self {
-        self.write_new_line().deindent().indent().write("]");
+        self.write_new_line().deindent().advance().write("]");
         self.state = JSONState::AfterValue;
         self
     }
@@ -138,6 +139,16 @@ impl JsonWriter for Context {
             .write(":")
             .write_one_space()
             .write(value);
+        self.state = JSONState::AfterValue;
+        self
+    }
+
+    fn json_element(&mut self, value: &str) -> &mut Self {
+        match self.state {
+            JSONState::AfterValue => { self.write(","); }
+            JSONState::ObjectStart => {}
+        };
+        self.write_new_line().advance().write(value);
         self.state = JSONState::AfterValue;
         self
     }
@@ -210,11 +221,6 @@ enum ValueType {
     Object(Object),
 }
 
-fn main() {
-    let json = Object::new("global");
-    json.add("1", ValueType::String(String::from("123")));
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{Context, JsonWriter};
@@ -232,6 +238,24 @@ mod tests {
   foo: {
     goo: \"hoo\"
   }
+}")
+    }
+
+    #[test]
+    fn test_for_writer_array() {
+        let mut writer = Context::new();
+        writer
+            .json_start()
+            .json_arraystart("foo")
+            .json_element("1")
+            .json_element("2")
+            .json_arrayend()
+            .json_end();
+        assert_eq!(writer.output, "{
+  foo: [
+    1,
+    2
+  ]
 }")
     }
 }
